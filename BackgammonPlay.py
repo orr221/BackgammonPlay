@@ -1,41 +1,43 @@
 import random
 
 
-# -------------------------------------------------
+class InvalidMoveError(Exception):
+    pass
+
+
 class Board(object):
     def __init__(self):
-        self.board = ['' for i in range(24)]
+        self.board = [[] for i in range(24)]
 
     def get_board(self):
         return self.board
 
-    def start_board(self, obj1, obj2):
-        self.board[0] = 2 * obj1
-        self.board[5] = 5 * obj2
-        self.board[7] = 3 * obj2
-        self.board[11] = 5 * obj1
-        self.board[12] = 5 * obj2
-        self.board[16] = 3 * obj1
-        self.board[18] = 5 * obj1
-        self.board[23] = 2 * obj2
+    def start_board(self, sign1, sign2):
+        self.board[0] = 2 * [sign1]
+        self.board[5] = 5 * [sign2]
+        self.board[7] = 3 * [sign2]
+        self.board[11] = 5 * [sign1]
+        self.board[12] = 5 * [sign2]
+        self.board[16] = 3 * [sign1]
+        self.board[18] = 5 * [sign1]
+        self.board[23] = 2 * [sign2]
 
     def change_board(self, index_now, steps, sign):
         try:
             if (sign in self.board[index_now] and (
-                    self.board[index_now + steps] == '' or sign in (self.board[index_now + steps]))):
+                    self.board[index_now + steps] == [] or sign in (self.board[index_now + steps]))):
                 self.board[index_now] = self.board[index_now][:-1]
-                self.board[index_now + steps] = self.board[index_now + steps] + sign
+                self.board[index_now + steps].append(sign)
+                return
             else:
-                return False
-        except IndexError:
-            return False
+                return InvalidMoveError('invalid move')
+        except Exception as e:
+            return e
 
     def change_board_level_2(self, index):
         # get valid input
         self.board[index] = self.board[index][:-1]
 
-
-# ---------------------------------------
 
 class Player(object):
     def __init__(self, sign, name):
@@ -49,14 +51,13 @@ class Player(object):
         return self.name
 
 
-# --------------------------------------------
 class Game(object):
     def __init__(self, player1, player2, board):
         self.p1 = player1
         self.p2 = player2
         self.board = board
         self.count = -1
-        self.val_cube = 0
+        self.val_cube = (0, 0)
 
     def player_now(self):
         self.count = self.count + 1
@@ -70,53 +71,49 @@ class Game(object):
         self.val_cube = num1, num2
         return self.val_cube
 
-    def check_user_step(self, user_step):
-        return check_steps(self.val_cube, user_step)
 
-    def user_move(self, index_now, steps, sign):
-        val_func = self.board.change_board(index_now, steps, sign)
-        if val_func is False:
-            return False  # cant make this move
-        return True  # The move was approved. The board has changed
-
-
-# ----------------------------------
-
-class Specific_Field(Game):
+class SpecificField(Game):
     pass
 
     def print_board(self):
         print_str_board(self.board.get_board())
 
-    def move(self, player_now):
+    def turn_in_game(self, player):
         self.val_cube = self.rolling_the_cubes()
-        dic_val_cubes = dict_val_cubes(self.val_cube)
+        self.print_board()
         print("cubes is: {val}. \n{name} please enter your move".format(name=player.get_name(), val=self.val_cube))
-        index, step = self.get_move_from_user(player, dic_val_cubes)
-        self.make_move(index, step, player)
+        self.make_move(player)
 
-    def make_move(self, index, step, player):
-        sign = player.get_sign()
+    def make_move(self, player):
         dict_cubes = dict_val_cubes(self.val_cube)
-        dict_cubes = change_dict_val_cubes(dict_cubes, step)
         while (sum(list(dict_cubes.values())) > 0):
-            index, step = self.get_move_from_user(player, dict_cubes)
+            step = self.move_in_board(player, dict_cubes)
             dict_cubes = change_dict_val_cubes(dict_cubes, step)
+            self.print_board()
 
     def get_move_from_user(self, player, dic_val_cubes):
-        sign = player.get_sign()
+        index = self.valid_index(player)
+        step = self.legal_step(dic_val_cubes)
+        return index, step
+
+    def move_in_board(self, player, dic_val_cubes):
+        b = " "
+        while (b is not None):
+            print(b)
+            index, step = self.get_move_from_user(player, dic_val_cubes)
+            b = self.board.change_board(index, step, player.get_sign())
+        return step
+
+    def valid_index(self, player):
         while (True):
-            index = input("index: ")
-            step = self.legal_step(dic_val_cubes)
-            if player == self.p1:  # Player 1 moves clockwise
-                move = self.user_move(int(index), int(step), sign)
-            else:  # Player 2 moves counterclockwise
-                move = self.user_move(int(index), int(-step), sign)
-            if move is False:
-                print("Invalid move")
-            else:
-                self.print_board()
-                return int(index), int(step)
+            try:
+                index = int(input("index: "))
+                if (player.get_sign() in self.board.get_board()[index]):
+                    return index
+                else:
+                    print("You don't have a player in this index")
+            except Exception as e:
+                print(e)
 
     def legal_step(self, dic_val_cubes):
         while (True):
@@ -126,6 +123,11 @@ class Specific_Field(Game):
                 print("The step is not possible")
             else:
                 return step
+
+    def game(self):
+        while (True):
+            player = self.player_now()
+            self.turn_in_game(player)
 
     def level(self, player_now):
         if player_now is p1:
@@ -137,27 +139,24 @@ class Specific_Field(Game):
         return 1
 
     def play_level_2(self, index, step, player_now):
-        step=step-1
+        step = step - 1
         if player_now is p2:
             if ((index == step and p2.get_sign() in self.board.get_board()[index]) or (
                     index < step and p2.get_sign() not in self.board.get_board()[index:6])):
                 self.board.change_board_level_2(index)
                 return True
             if index > step and p2.get_sign() in self.board.get_board()[index]:
-                self.board.change_board(index, -(step+1), player_now.get_sign())
+                self.board.change_board(index, -(step + 1), player_now.get_sign())
 
         elif ((abs(index - 23) == step and p1.get_sign() in self.board.get_board()[index]) or (
                 (abs(index - 23) + 1) < step and p1.get_sign() not in self.board.get_board()[18:index])):
             self.board.change_board_level_2(index)
             return True
         if abs(index - 23) > step and p1.get_sign() in self.board.get_board()[index]:
-            self.board.change_board(index, (step+1), p1.get_sign())
+            self.board.change_board(index, (step + 1), p1.get_sign())
             return True
 
         return False
-
-
-# ---------------------------------------------------
 
 
 def change_dict_val_cubes(dict_cubes, step):
@@ -169,10 +168,8 @@ def change_dict_val_cubes(dict_cubes, step):
             for i in list(dict_cubes.keys()):
                 dict_cubes[i] = 0
     else:
-        print(dict_cubes)
         val = list(dict_cubes.keys())[0]
         dict_cubes[val] = dict_cubes[val] - int(step / val)
-        print(dict_cubes)
     return dict_cubes
 
 
@@ -185,9 +182,8 @@ def dict_val_cubes(val_cubes):
 
 
 def check_steps_regular(dict_cubes, step):
-    if step in dict_cubes and dict_cubes[step] != 0:
-        return True
-    if step == sum(dict_cubes) and sum(list(dict_cubes.values())) == 2:
+    if ((step in dict_cubes and dict_cubes[step] != 0) or (
+            step == sum(dict_cubes) and sum(list(dict_cubes.values())) == 2)):
         return True
     return False
 
@@ -206,8 +202,7 @@ def check_steps_when_double(dict_cubes, step):
 def check_steps(dic_val_cubes, step):
     if len(dic_val_cubes) > 1:
         return check_steps_regular(dic_val_cubes, step)
-    else:
-        return check_steps_when_double(dic_val_cubes, step)
+    return check_steps_when_double(dic_val_cubes, step)
 
 
 def print_str_board(board):
@@ -252,22 +247,10 @@ def print_second_half_board(board):
         print("\n")
 
 
-# ________________________________________________________
-
-# def play_game(s):
-#     player = s.player_now()
-#     while(s.level()
-#
-
-
 if __name__ == '__main__':
     b = Board()
     b.start_board("@", "#")
-    # print(b.change_board(0, 11, "#"))
-    # print(b.get_board())
-    # a = input_from_user()
     p1 = Player("@", "Orr")
     p2 = Player("#", "Yohai")
-    s = Specific_Field(p1, p2, b)
-    # player = s.player_now()
-    # while(player.get_sign in s.board):
+    s = SpecificField(p1, p2, b)
+    s.game()
